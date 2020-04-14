@@ -199,6 +199,26 @@ function bb_add(client, state::WizardState, prefix::Prefix, platform::Platform, 
     end
 end
 
+using ArgParse
+
+function bb_parser()
+    s = ArgParseSettings()
+
+    @add_arg_table! s begin
+        "add"
+            help = "Add a jll package as if specified at the start of the wizard"
+            action = :command
+    end
+
+    @add_arg_table! s["add"] begin
+        "jll"
+        help = "The jll to add"
+        required = true
+    end
+
+    s
+end
+
 function setup_bb_service(state::WizardState, prefix, platform)
     fpath = joinpath(prefix, "metadir", "bb_service")
     server = listen(fpath)
@@ -213,20 +233,23 @@ function setup_bb_service(state::WizardState, prefix, platform)
                 try
                     cmd = readline(client)
                     ARGS = split(cmd, " ")
-                    length(ARGS) == 0 && client_error("Expected a command")
-                    if length(ARGS) >= 2 && ARGS[1] == "bb"
-                        if ARGS[2] == "add"
-                            if length(ARGS) == 2
-                                println(client, "Usage: bb add <jll>")
-                                close(client)
-                            end
-                            bb_add(client, state, prefix, platform, ARGS[3])
+                    s = bb_parser()
+                    try
+                        popfirst!(ARGS)
+                        parsed = parse_args(ARGS, s)
+                        if parsed == nothing
+                        elseif parsed["%COMMAND%"] == "add"
+                            bb_add(client, state, prefix, platform, parsed["add"]["jll"])
+                        end
+                        close(client)
+                    catch e
+                        if isa(e, ArgParseError)
+                            println(client, "ERROR: ", e.text, "\n")
+                            ArgParse.show_help(client, s)
                             close(client)
                         else
-                            client_error("Unrecognized subcommand $(ARGS[2])")
+                            rethrow(e)
                         end
-                    else
-                        client_error("Unrecognized command $(ARGS[1])")
                     end
                 catch e
                     showerror(stderr, e)
