@@ -192,7 +192,11 @@ function bb_add(client, state::WizardState, prefix::Prefix, platform::Platform, 
     new_dep = Dependency(jll)
     try
         # This will redo some work, but that may be ok
-        setup_dependencies(prefix, getpkg.([state.dependencies; new_dep]), platform)
+        concrete_platform = get_concrete_platform(platform;
+                                                  preferred_gcc_version = state.preferred_gcc_version,
+                                                  preferred_llvm_version = state.preferred_llvm_version,
+                                                  compilers = state.compilers)
+        setup_dependencies(prefix, getpkg.([state.dependencies; new_dep]), concrete_platform)
         push!(state.dependencies, new_dep)
     catch e
         showerror(client, e)
